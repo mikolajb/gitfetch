@@ -1,13 +1,19 @@
 package main
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/libgit2/git2go"
 )
@@ -118,7 +124,7 @@ func fetchRepo(repopaths chan string, control chan string) {
 							valid bool,
 							hostname string,
 						) git.ErrorCode {
-
+							fmt.Println("CertificateCheckCallback:", hostname)
 							if cert.Kind == git.CertificateX509 {
 								err = cert.X509.VerifyHostname(hostname)
 								if err != nil {
@@ -128,7 +134,78 @@ func fetchRepo(repopaths chan string, control chan string) {
 									return 0
 								}
 							} else if cert.Kind == git.CertificateHostkey {
-								return git.ErrUser
+								key_ok := false
+
+								config := &ssh.ClientConfig{
+									HostKeyCallback: func(
+										hostname string,
+										remote net.Addr,
+										key ssh.PublicKey,
+									) error {
+										fmt.Println(key.Type())
+										hash := md5.New()
+										hash.Write(key.Marshal())
+										md5sum := hash.Sum(nil)
+										hash = sha1.New()
+										hash.Write(key.Marshal())
+										sha1sum := hash.Sum(nil)
+
+										hash_compare := true
+										if cert.Hostkey.Kind&git.HostkeyMD5 > 0 {
+											for i := range cert.Hostkey.HashMD5 {
+												if cert.Hostkey.HashMD5[i] != md5sum[i] {
+													hash_compare = false
+													break
+												}
+											}
+										}
+										if cert.Hostkey.Kind&git.HostkeySHA1 > 0 {
+											for i := range cert.Hostkey.HashSHA1 {
+												if cert.Hostkey.HashSHA1[i] != sha1sum[i] {
+													hash_compare = false
+													break
+												}
+											}
+										}
+
+										if cert.Hostkey.Kind&(git.HostkeyMD5|git.HostkeySHA1) == 0 {
+											hash_compare = false
+										}
+
+										if hash_compare {
+											fmt.Println("Key ok!")
+											key_ok = true
+										}
+										x := make([]string, 0)
+										for _, i := range md5sum {
+											x = append(x, fmt.Sprintf("%02x", i))
+										}
+										fmt.Println("MD5:", strings.Join(x, ":"))
+										fmt.Printf(
+											"SHA1: %s\n",
+											base64.StdEncoding.EncodeToString(
+												sha1sum,
+											),
+										)
+										return nil
+									},
+									HostKeyAlgorithms: []string{
+										ssh.KeyAlgoDSA,
+										ssh.KeyAlgoRSA,
+									},
+								}
+
+								_, err := ssh.Dial("tcp", hostname+":22", config)
+								if err == nil {
+									fmt.Println("no error")
+								} else {
+									fmt.Println("there is an error")
+								}
+								if key_ok {
+									return 0
+								} else {
+									return git.ErrUser
+								}
 							}
 
 							return git.ErrUser
@@ -138,16 +215,21 @@ func fetchRepo(repopaths chan string, control chan string) {
 							username_from_url string,
 							allowed_types git.CredType,
 						) (git.ErrorCode, *git.Cred) {
+							fmt.Println("CredentialsCallback:", url)
 							if allowed_types&git.CredTypeUserpassPlaintext > 0 {
+								fmt.Println("CredTypeUserpassPlaintext")
 								return git.ErrUser, nil
 							} else if allowed_types&git.CredTypeSshKey > 0 {
+								fmt.Println("CredTypeSshKey")
 								ret, cred := git.NewCredSshKeyFromAgent(
 									username_from_url,
 								)
 								return git.ErrorCode(ret), &cred
 							} else if allowed_types&git.CredTypeSshCustom > 0 {
+								fmt.Println("CredTypeSshCustom")
 								return git.ErrUser, nil
 							} else if allowed_types&git.CredTypeDefault > 0 {
+								fmt.Println("CredTypeDefault")
 								return git.ErrUser, nil
 							}
 
