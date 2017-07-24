@@ -14,8 +14,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/ssh"
-
-	"github.com/libgit2/git2go"
+	git "gopkg.in/libgit2/git2go.v26"
 )
 
 const (
