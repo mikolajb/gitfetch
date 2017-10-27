@@ -39,22 +39,22 @@ type Config struct {
 }
 
 func getConfigFile() (string, string) {
-	config_home := os.Getenv("XDG_CONFIG_HOME")
+	configHome := os.Getenv("XDG_CONFIG_HOME")
 
-	if len(config_home) == 0 {
-		config_home = path.Join(os.Getenv("HOME"), ".config")
+	if len(configHome) == 0 {
+		configHome = path.Join(os.Getenv("HOME"), ".config")
 	}
 
-	config_home = path.Join(config_home, AppName)
-	config_file := path.Join(config_home, AppName+".json")
+	configHome = path.Join(configHome, AppName)
+	configFile := path.Join(configHome, AppName+".json")
 
-	return config_file, config_home
+	return configFile, configHome
 }
 
 func getConfig() *Config {
-	config_file, _ := getConfigFile()
+	configFile, _ := getConfigFile()
 
-	if _, err := os.Stat(config_file); os.IsNotExist(err) {
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		config := Config{
 			Workers:      8,
 			Repositories: []string{},
@@ -63,7 +63,7 @@ func getConfig() *Config {
 	}
 
 	config := new(Config)
-	content, err := ioutil.ReadFile(config_file)
+	content, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		panic(err)
 	}
@@ -73,9 +73,9 @@ func getConfig() *Config {
 }
 
 func setConfig(config *Config) {
-	config_file, config_home := getConfigFile()
-	if _, err := os.Stat(config_file); os.IsNotExist(err) {
-		if err = os.MkdirAll(config_home, 0700); err != nil {
+	configFile, configHome := getConfigFile()
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		if err = os.MkdirAll(configHome, 0700); err != nil {
 			panic(err)
 		}
 	}
@@ -83,7 +83,7 @@ func setConfig(config *Config) {
 	if err != nil {
 		panic(err)
 	}
-	ioutil.WriteFile(config_file, content, 0777)
+	ioutil.WriteFile(configFile, content, 0777)
 }
 
 func fetchRepo(repopaths chan string, control chan string) {
@@ -111,10 +111,10 @@ func fetchRepo(repopaths chan string, control chan string) {
 				return nil
 			}
 
-			remote_name, _ := repository.RemoteName(ref.Name())
+			remoteName, _ := repository.RemoteName(ref.Name())
 
 			if ref.IsRemote() {
-				remote, _ := repository.Remotes.Lookup(remote_name)
+				remote, _ := repository.Remotes.Lookup(remoteName)
 
 				fo := &git.FetchOptions{
 					RemoteCallbacks: git.RemoteCallbacks{
@@ -129,11 +129,10 @@ func fetchRepo(repopaths chan string, control chan string) {
 								if err != nil {
 									fmt.Println(err)
 									return git.ErrUser
-								} else {
-									return 0
 								}
+								return 0
 							} else if cert.Kind == git.CertificateHostkey {
-								key_ok := false
+								keyOk := false
 
 								config := &ssh.ClientConfig{
 									HostKeyCallback: func(
@@ -149,11 +148,11 @@ func fetchRepo(repopaths chan string, control chan string) {
 										hash.Write(key.Marshal())
 										sha1sum := hash.Sum(nil)
 
-										hash_compare := true
+										hashCompare := true
 										if cert.Hostkey.Kind&git.HostkeyMD5 > 0 {
 											for i := range cert.Hostkey.HashMD5 {
 												if cert.Hostkey.HashMD5[i] != md5sum[i] {
-													hash_compare = false
+													hashCompare = false
 													break
 												}
 											}
@@ -161,21 +160,21 @@ func fetchRepo(repopaths chan string, control chan string) {
 										if cert.Hostkey.Kind&git.HostkeySHA1 > 0 {
 											for i := range cert.Hostkey.HashSHA1 {
 												if cert.Hostkey.HashSHA1[i] != sha1sum[i] {
-													hash_compare = false
+													hashCompare = false
 													break
 												}
 											}
 										}
 
 										if cert.Hostkey.Kind&(git.HostkeyMD5|git.HostkeySHA1) == 0 {
-											hash_compare = false
+											hashCompare = false
 										}
 
-										if hash_compare {
+										if hashCompare {
 											fmt.Println("Key ok!")
-											key_ok = true
+											keyOk = true
 										}
-										x := make([]string, 0)
+										var x []string
 										for _, i := range md5sum {
 											x = append(x, fmt.Sprintf("%02x", i))
 										}
@@ -200,11 +199,10 @@ func fetchRepo(repopaths chan string, control chan string) {
 								} else {
 									fmt.Println("there is an error")
 								}
-								if key_ok {
+								if keyOk {
 									return 0
-								} else {
-									return git.ErrUser
 								}
+								return git.ErrUser
 							}
 
 							return git.ErrUser
