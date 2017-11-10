@@ -1,0 +1,4 @@
+[[constraint]]
+  branch = "v4"
+  name = "gopkg.in/src-d/go-git.v4"
+  source = "https://github.com/src-d/go-git"

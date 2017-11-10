@@ -1,8 +1,0 @@
-package: github.com/mikolajb/gitfetch
-import:
-- package: gopkg.in/libgit2/git2go.v26
-  repo: https://github.com/mikolajb/git2go.git
-  version: v26
-- package: golang.org/x/crypto
-  subpackages:
-  - ssh
